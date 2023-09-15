@@ -1,0 +1,47 @@
+import boto3
+
+def convert_to_gp3(event, context):
+    # Initialize AWS clients for EC2 and CloudWatch
+    ec2_client = boto3.client('ec2')
+    cloudwatch = boto3.client('cloudwatch')
+
+    # Define the AWS region and instance ID
+    region = 'your-aws-region'
+    instance_id = 'your-instance-id'
+
+    # List all EBS volumes attached to the instance
+    response = ec2_client.describe_instances(
+        InstanceIds=[instance_id],
+        DryRun=False
+    )
+
+    # Iterate through the volumes and convert GP2 to GP3
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            for block_device in instance['BlockDeviceMappings']:
+                volume_id = block_device['Ebs']['VolumeId']
+                volume_type = block_device['Ebs']['VolumeType']
+                if volume_type == 'gp2':
+                    print(f'Converting volume {volume_id} to gp3...')
+                    ec2_client.modify_volume(
+                        VolumeId=volume_id,
+                        VolumeType='gp3',
+                        Iops=3000,  # You can adjust IOPS as needed
+                    )
+
+    # Publish a CloudWatch metric or log the conversion status
+    cloudwatch.put_metric_data(
+        MetricData=[
+            {
+                'MetricName': 'GP3ConversionStatus',
+                'Value': 1,  # Use 1 to indicate success
+                'Unit': 'Count'
+            }
+        ],
+        Namespace='CustomNamespace'
+    )
+
+    return {
+        'statusCode': 200,
+        'body': 'GP2 to GP3 conversion completed successfully.'
+    }
